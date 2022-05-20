@@ -19,6 +19,14 @@ namespace SPH
 	class Viscosity_Casson : public ViscosityBase
 	{
 	protected:
+
+        //parameters of modified casson model
+        static Real m_muC;
+        static Real m_tauC;
+        static Real m_lambda;
+        static std::vector<Vector6r> m_strainRate;
+        static std::vector<Real> m_cassonViscosity;
+
 		Real m_boundaryViscosity;
 		unsigned int m_maxIter;
 		Real m_maxError;

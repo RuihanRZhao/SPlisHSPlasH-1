@@ -101,10 +101,6 @@ void Viscosity_Casson::matrixVecProd(const Real* vec, Real *result, void *userDa
 	if (sim->is2DSimulation())
 		d = 8.0;
 
-	const Scalarf8 d_mu_rho0(d * mu  * density0);
-	const Scalarf8 d_mub(d * mub);
-	const Scalarf8 h2_001(0.01f*h2);
-	const Scalarf8 density0_avx(density0);
 	
 	#pragma omp parallel default(shared)
 	{
@@ -124,6 +120,42 @@ void Viscosity_Casson::matrixVecProd(const Real* vec, Real *result, void *userDa
 
 			Vector3f8 delta_ai_avx;
 			delta_ai_avx.setZero();
+
+
+            Vector6r &strainRate = m_strainRate[i];
+            for (unsigned int j = 0; j < sim->numberOfNeighbors(fluidModelIndex, fluidModelIndex, i); j++)
+            {
+                const unsigned int neighborIndex = sim->getNeighbor(fluidModelIndex, fluidModelIndex, i, j);
+                const Vector3r& xj = model->getPosition(neighborIndex);
+
+                const Vector3r& vj = model->getVelocity(neighborIndex);
+
+                const Vector3r gradW = sim->gradW(xi - xj);
+                const Vector3r vji = vj - vi;
+                const Real m = model->getMass(neighborIndex);
+                const Real m2 = m * static_cast<Real>(2.0);
+                strainRate[0] += m2 * vji[0] * gradW[0];
+                strainRate[1] += m2 * vji[1] * gradW[1];
+                strainRate[2] += m2 * vji[2] * gradW[2];
+                strainRate[3] += m * (vji[0] * gradW[1] + vji[1] * gradW[0]);
+                strainRate[4] += m * (vji[0] * gradW[2] + vji[2] * gradW[0]);
+                strainRate[5] += m * (vji[1] * gradW[2] + vji[2] * gradW[1]);
+            }
+            strainRate = (static_cast<Real>(0.5) / density_i) * strainRate;
+            //end shear strain rate calculation
+
+            //Modified Casson Viscosity
+            m_cassonViscosity[i] = sqrt(m_muC) + sqrt(m_tauC) / (sqrt(m_lambda) + sqrt(strainRate.norm()));
+            m_cassonViscosity[i];
+            //end: Modified Casson Viscosity
+
+
+
+            const Scalarf8 d_mu_rho0(d * m_cassonViscosity[i]  * density0);
+            const Scalarf8 d_mub(d * mub);
+            const Scalarf8 h2_001(0.01f*h2);
+            const Scalarf8 density0_avx(density0);
+
 
 			//////////////////////////////////////////////////////////////////////////
 			// Fluid
